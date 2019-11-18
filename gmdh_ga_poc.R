@@ -1,6 +1,7 @@
 library(purrr)
 library(matrixcalc)
 library(datastructures)
+library(furrr)
 library(dplyr) # for the pipe
 
 
@@ -14,7 +15,7 @@ d <- 0.0001
 D <- 0.001
 # GA operators
 # start amount of applicants (M)
-M <- 100
+M <- 1000
 # k - interations to double check
 k <- 5
 # F - freedom paramu
@@ -25,7 +26,7 @@ mutation_probability <- 0.2
 cross_over_probalitity <- 0.9
 # seed
 # H amount of model for next breed
-H <- 80
+H <- 180
 # N - gen length & number of frequencies
 N <- 50
 Seed <- 123
@@ -36,7 +37,7 @@ Beta <- 0.5
 Alpha <- 0.5
 
 # Read data
-Data <<- read.csv(file="./data/test1.csv", header=FALSE, sep=",")
+Data <<- read.csv(file="./data/ua_death.csv", header=FALSE, sep=",")
 
 
 # Split to train test exam parts
@@ -190,9 +191,9 @@ gens = map(seq(0, M),function(x) { create_gen(N) })
 
 ga_tick <- function(gens) {
   # -- compute least squares method(LSM)
-  models <- map(gens, function(gen) {make_model(X, Y, gen)})
+  models <- furrr::future_map(gens, function(gen) {make_model(X, Y, gen)})
   # -- compute external criterion(EC) for model on test data
-  models_with_ec <- map(models, function(model) {
+  models_with_ec <- furrr::future_map(models, function(model) {
     compute_ec(model, train[["V1"]], train[["V2"]], test[["V1"]], test[["V2"]], Aplha, Beta ) 
   })
   
@@ -234,13 +235,21 @@ while (TRUE) {
   iteration <<- iteration + 1
 }
 
+print_model <- function(model) {
+  paste("Y = ", model$const, " + ", paste(unlist(purrr::map(seq_along(model$fs), function(i) {
+    paste(model$coeff[(i - 1) * 2 + 1] ," * sin(",model$fs[i]," * X) + ", model$coeff[(i - 1) * 2 + 2] ," * cos(",model$fs[i], "* X)", sep="")
+  })), collapse = " + "), sep = "")
+}
+
 # ---- Result ------
 # print best 5 models
 # plot best model and data
 best_model <- datastructures::peek(saved_models)[[1]]
+print_model(best_model)
 DD <- data.frame(model=compute_model_over(Data[["V1"]], best_model), real=Data[["V2"]])
 matplot(DD, type="l")
 plot(Data)
 plot( data.frame(Data[["V1"]], compute_model_over(Data[["V1"]], best_model)))
+
 # calc criterions on exam data
   
